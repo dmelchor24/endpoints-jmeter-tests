@@ -88,20 +88,16 @@ jobs:
       - name: 🔨 Build imagen Docker de JMeter
         run: |
           echo "🔨 Construyendo imagen Docker..."
-          docker build \
-            --build-arg JMETER_VERSION=${JMETER_VERSION} \
-            --cache-from type=local,src=/tmp/.buildx-cache \
-            --cache-to type=local,dest=/tmp/.buildx-cache-new \
-            -t jmeter-runner:latest \
-            -f Dockerfile \
-            .
+            docker build \
+              --build-arg JMETER_VERSION=${JMETER_VERSION} \
+              -t jmeter-runner:latest \
+              -f Dockerfile \
+              .
           
           echo "✅ Imagen construida exitosamente"
           docker images | grep jmeter-runner
           
-          # Mover cache para la próxima vez
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+            # Cache step removido por incompatibilidad con el driver Docker en GitHub Actions
       
       # 7. VALIDAR API (si es necesario)
       - name: 🔍 Validar que la API esté disponible
