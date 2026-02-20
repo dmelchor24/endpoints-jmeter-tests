@@ -1,0 +1,374 @@
+name: Run JMeter Performance Tests
+
+on:
+  repository_dispatch:
+    types: [run-jmeter-tests]
+
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL base de la API a probar'
+
+        required: true
+        default: 'http://localhost:8000'
+        type: string
+      test_plan:
+        description: 'Ruta de Test plan a ejecutar'
+        required: false
+        default: 'test-plans/jmeter/tp-carga-controlada.jmx'
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: '3.11'
+  JMETER_VERSION: '5.6.3'
+
+jobs:
+  run-performance-tests:
+    name: Ejecutar Pruebas de Performance con Docker
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ============================================================
+      # 1. CHECKOUT DEL CÓDIGO
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+      
+      # 2. CONFIGURAR DOCKER BUILDX
+      - name: 🐳 Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # 3. CONFIGURAR VARIABLES DE ENTORNO
+      - name: ⚙️ Configurar variables de entorno
+        id: config
+        run: |
+          # Variables del test (prioridad: workflow_dispatch > repository_dispatch > default)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BASE_URL="${{ inputs.base_url }}"
+            TEST_PLAN="${{ inputs.test_plan }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            BASE_URL="${{ github.event.client_payload.base_url || 'http://localhost:8000' }}"
+            TEST_PLAN="${{ github.event.client_payload.test_plan || 'test-plans/jmeter/tp-carga-controlada.jmx' }}"
+          else
+            BASE_URL="http://localhost:8000"
+            TEST_PLAN="test-plans/jmeter/tp-carga-controlada.jmx"
+          fi
+          
+          echo "base_url=$BASE_URL" >> $GITHUB_OUTPUT
+          echo "test_plan=$TEST_PLAN" >> $GITHUB_OUTPUT
+          
+          echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+          echo "TEST_PLAN=$TEST_PLAN" >> $GITHUB_ENV
+      
+      # 4. MOSTRAR CONFIGURACIÓN
+      - name: 📋 Mostrar configuración del test
+        run: |
+          echo "================================================"
+          echo "  CONFIGURACIÓN DE LA PRUEBA"
+          echo "================================================"
+          echo "Base URL:    ${{ steps.config.outputs.base_url }}"
+          echo "Test Plan:   ${{ steps.config.outputs.test_plan }}"
+          echo "JMeter:      ${JMETER_VERSION}"
+          echo "Python:      ${{ env.PYTHON_VERSION }}"
+          echo "Runner:      Docker"
+          echo "================================================"
+      
+      # 5. CACHE DE DOCKER LAYERS
+      - name: 💾 Cache de Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
+      # 6. BUILD DE LA IMAGEN DOCKER
+      - name: 🔨 Build imagen Docker de JMeter
+        run: |
+          echo "🔨 Construyendo imagen Docker..."
+          docker build \
+            --build-arg JMETER_VERSION=${JMETER_VERSION} \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new \
+            -t jmeter-runner:latest \
+            -f Dockerfile \
+            .
+          
+          echo "✅ Imagen construida exitosamente"
+          docker images | grep jmeter-runner
+          
+          # Mover cache para la próxima vez
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
+      
+      # 7. VALIDAR API (si es necesario)
+      - name: 🔍 Validar que la API esté disponible
+        if: ${{ !contains(steps.config.outputs.base_url, 'localhost') }}
+        run: |
+          echo "🔍 Verificando disponibilidad de: ${{ steps.config.outputs.base_url }}"
+          
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -sf "${{ steps.config.outputs.base_url }}/health" > /dev/null 2>&1 || \
+               curl -sf "${{ steps.config.outputs.base_url }}" > /dev/null 2>&1; then
+              echo "✅ API disponible"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "⚠️  Intento $RETRY_COUNT/$MAX_RETRIES - API no disponible, esperando..."
+            sleep 10
+          done
+          
+          echo "❌ API no disponible después de $MAX_RETRIES intentos"
+          echo "⚠️  Continuando de todas formas..."
+      
+      # 8. CREAR DIRECTORIOS PARA RESULTADOS
+      - name: 📂 Crear directorios
+        run: |
+          mkdir -p results
+          mkdir -p docs
+          chmod 777 results docs
+      
+      # 9. EJECUTAR PRUEBAS CON DOCKER
+      - name: 🚀 Ejecutar pruebas de JMeter en Docker
+        run: |
+          echo "🐳 Ejecutando contenedor Docker..."
+          
+          docker run --rm \
+            -v $(pwd)/results:/tests/results \
+            -v $(pwd)/docs:/tests/docs \
+            -v $(pwd)/test-plans:/tests/test-plans:ro \
+            -v $(pwd)/data:/tests/data:ro \
+            -e BASE_URL="${{ steps.config.outputs.base_url }}" \
+            -e TEST_PLAN="${{ steps.config.outputs.test_plan }}" \
+            jmeter-runner:latest \
+            python3 scripts/execute-tests.py \
+              --base-url="${{ steps.config.outputs.base_url }}" \
+              --test-plan="${{ steps.config.outputs.test_plan }}"
+          
+          echo "✅ Pruebas completadas"
+      
+      # 10. VERIFICAR RESULTADOS GENERADOS
+      - name: 🔍 Verificar resultados generados
+        run: |
+          echo "📂 Verificando estructura de archivos generados..."
+          
+          if [ -d "results" ]; then
+            echo "✅ Directorio results/ existe"
+            ls -lah results/
+          else
+            echo "❌ No se encontró directorio results/"
+            exit 1
+          fi
+          
+          if [ -d "docs" ]; then
+            echo "✅ Directorio docs/ existe"
+            ls -lah docs/
+          else
+            echo "❌ No se encontró directorio docs/"
+            exit 1
+          fi
+          
+          # Verificar que se generó el reporte
+          if [ -f "docs/index.html" ]; then
+            echo "✅ Reporte HTML generado"
+          else
+            echo "❌ No se generó el reporte HTML"
+            exit 1
+          fi
+      
+      # 11. PUBLICAR RESULTADOS
+      - name: 📊 Publicar reporte HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-report-${{ github.run_number }}
+          path: |
+            docs/
+            results/run_*/
+          retention-days: 30
+      
+      # 12. DEPLOY A GITHUB PAGES
+      - name: 🌐 Deploy a GitHub Pages
+        if: success()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: 'Deploy JMeter report - Run ${{ github.run_number }}'
+      
+      # 13. ANALIZAR RESULTADOS
+      - name: 📈 Analizar resultados
+        if: success()
+        run: |
+          echo "📊 Analizando resultados..."
+          
+          # Buscar el archivo statistics.json más reciente
+          STATS_FILE=$(find results -name "statistics.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -f2- -d" ")
+          
+          if [ -z "$STATS_FILE" ] || [ ! -f "$STATS_FILE" ]; then
+            echo "⚠️  No se encontró archivo de estadísticas"
+            echo "ℹ️  El test se ejecutó pero no hay datos para analizar"
+            exit 0
+          fi
+          
+          echo "📄 Archivo de estadísticas: $STATS_FILE"
+          
+          # Extraer métricas usando Python
+          python3 << EOF
+          import json
+          import sys
+          
+          with open("$STATS_FILE", "r") as f:
+              stats = json.load(f)
+          
+          total = stats.get("Total", {})
+          error_pct = total.get("errorPct", 0)
+          mean_time = total.get("meanResTime", 0)
+          p95_time = total.get("pct2ResTime", 0)
+          sample_count = total.get("sampleCount", 0)
+          
+          print(f"\n{'='*60}")
+          print(f"  RESULTADOS DE LA PRUEBA")
+          print(f"{'='*60}")
+          print(f"Total peticiones:   {sample_count:,}")
+          print(f"Tasa de error:      {error_pct:.2f}%")
+          print(f"Tiempo promedio:    {mean_time:.2f}ms")
+          print(f"Percentil 95:       {p95_time:.2f}ms")
+          print(f"{'='*60}\n")
+          
+          # Definir umbrales
+          ERROR_THRESHOLD = 5.0  # 5% de errores máximo
+          P95_THRESHOLD = 2000   # 2000ms máximo para P95
+          
+          failed = False
+          
+          if error_pct > ERROR_THRESHOLD:
+              print(f"❌ FALLO: Tasa de error ({error_pct:.2f}%) supera el umbral ({ERROR_THRESHOLD}%)")
+              failed = True
+          
+          if p95_time > P95_THRESHOLD:
+              print(f"❌ FALLO: P95 ({p95_time:.2f}ms) supera el umbral ({P95_THRESHOLD}ms)")
+              failed = True
+          
+          if not failed:
+              print("✅ ÉXITO: Todos los umbrales fueron cumplidos")
+          
+          # Guardar métricas para el siguiente step
+          with open("metrics.txt", "w") as f:
+              f.write(f"error_pct={error_pct}\n")
+              f.write(f"mean_time={mean_time}\n")
+              f.write(f"p95_time={p95_time}\n")
+              f.write(f"sample_count={sample_count}\n")
+              f.write(f"failed={failed}\n")
+          
+          sys.exit(1 if failed else 0)
+          EOF
+      
+      # 14. GUARDAR MÉTRICAS COMO OUTPUT
+      - name: 💾 Guardar métricas
+        if: success() || failure()
+        id: metrics
+        run: |
+          if [ -f "metrics.txt" ]; then
+            cat metrics.txt >> $GITHUB_OUTPUT
+          fi
+      
+      # ============================================================
+      # 15. COMENTAR EN EL PR (si aplica)
+      # ============================================================
+      - name: 💬 Comentar resultados en PR
+        if: github.event_name == 'repository_dispatch' && github.event.client_payload.pr_number
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            let metrics = {
+              error_pct: 0,
+              mean_time: 0,
+              p95_time: 0,
+              sample_count: 0,
+              failed: false
+            };
+            
+            // Leer métricas del archivo
+            if (fs.existsSync('metrics.txt')) {
+              const content = fs.readFileSync('metrics.txt', 'utf8');
+              content.split('\n').forEach(line => {
+                const [key, value] = line.split('=');
+                if (key && value) {
+                  metrics[key] = key === 'failed' ? value === 'True' : parseFloat(value);
+                }
+              });
+            }
+            
+            const reportUrl = `https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/`;
+            const workflowUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            
+            const statusEmoji = metrics.failed ? '❌' : '✅';
+            const statusText = metrics.failed ? 'FALLÓ' : 'EXITOSO';
+            
+            const comment = `## 🚀 Resultados de Pruebas de Performance ${statusEmoji}
+            
+            **Estado**: ${statusText}
+            
+            | Métrica | Valor | Estado |
+            |---------|-------|--------|
+            | Total peticiones | ${metrics.sample_count.toLocaleString()} | ℹ️ |
+            | Tasa de error | ${metrics.error_pct.toFixed(2)}% | ${metrics.error_pct > 5 ? '❌' : '✅'} |
+            | Tiempo promedio | ${metrics.mean_time.toFixed(2)}ms | ℹ️ |
+            | Percentil 95 | ${metrics.p95_time.toFixed(2)}ms | ${metrics.p95_time > 2000 ? '❌' : '✅'} |
+            
+            📊 [Ver reporte completo](${reportUrl})
+            🔗 [Ver ejecución](${workflowUrl})
+            
+            <details>
+            <summary>Configuración del test</summary>
+            
+            - 🌐 Base URL: \`${{ github.event.client_payload.base_url }}\`
+            - 👥 Threads: ${{ github.event.client_payload.threads }}
+            - ⏱️  Duración: ${{ github.event.client_payload.duration }}s
+            - 📄 Test Plan: \`${{ github.event.client_payload.test_plan }}\`
+            - 🐳 Runner: Docker
+            
+            </details>
+            `;
+            
+            // Comentar en el repositorio de origen
+            const [owner, repo] = '${{ github.event.client_payload.source_repo }}'.split('/');
+            
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: ${{ github.event.client_payload.pr_number }},
+              body: comment
+            });
+      
+      # 16. LIMPIAR CONTENEDORES E IMÁGENES
+      - name: 🧹 Limpiar Docker
+        if: always()
+        run: |
+          echo "🧹 Limpiando recursos de Docker..."
+          docker system prune -f
+          echo "✅ Limpieza completada"
+      
+      # 17. NOTIFICAR RESULTADO
+      - name: 📧 Notificar resultado
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Las pruebas de performance completaron exitosamente"
+          else
+            echo "❌ Las pruebas de performance fallaron"
+            echo "📊 Revisa los artefactos para más detalles"
+          fi
+          echo "🔗 URL del workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

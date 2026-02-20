@@ -1,0 +1,33 @@
+# No copiar al contenedor
+.env
+.env.*
+
+# Results y docs (se montarán como volúmenes)
+results/
+docs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Logs
+*.log
