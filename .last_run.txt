@@ -1,0 +1,2 @@
+20260220_111356
+base_url=http://localhost:8000
