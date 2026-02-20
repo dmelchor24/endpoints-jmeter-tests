@@ -34,6 +34,9 @@ RUN echo "📥 Descargando JMeter ${JMETER_VERSION}..." && \
     rm apache-jmeter-${JMETER_VERSION}.tgz && \
     echo "✅ JMeter instalado"
 
+# Instalar plugin Concurrency Thread Group (jmeter-plugins-casutg)
+RUN curl -L -o /opt/apache-jmeter/lib/ext/jmeter-plugins-casutg-2.10.jar https://repo1.maven.org/maven2/kg/apc/jmeter-plugins-casutg/2.10/jmeter-plugins-casutg-2.10.jar
+
 # Instalar plugins de JMeter (opcional)
 RUN wget -q -O ${JMETER_HOME}/lib/ext/jmeter-plugins-manager.jar \
     https://jmeter-plugins.org/get/ || true && \
