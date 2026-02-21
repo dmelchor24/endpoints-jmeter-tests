@@ -175,13 +175,19 @@ jobs:
       
       # ============================================================
       # 12. UPLOAD ARTIFACTS
-      - name: 📊 Publicar reporte
+      - name: 📊 Publicar reporte HTML
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-report-${{ github.run_number }}
-          path: |
-            docs/
-            results/run_*/
+          path: docs/
+          retention-days: 30
+
+      - name: 📁 Publicar resultados CSV y logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results-${{ github.run_number }}
+          path: results/run_*/
+          retention-days: 30
       
       # ============================================================
       # 13. COMMIT REPORT

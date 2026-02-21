@@ -1,0 +1,1 @@
+curl -X POST https://endpoints-fast-api.onrender.com/api/v1/tasks/ -H "Content-Type: application/json" -d "{\"title\": \"Tarea 1\", \"description\": \"Test description\"}" -v
