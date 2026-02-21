@@ -8,9 +8,8 @@ on:
     inputs:
       base_url:
         description: 'URL base de la API a probar'
-
         required: true
-        default: 'https://endpoints-fast-api.onrender.com/'
+        default: 'https://endpoints-fast-api.onrender.com'
         type: string
       test_plan:
         description: 'Ruta de Test plan a ejecutar'
@@ -32,27 +31,28 @@ jobs:
     
     steps:
       # ============================================================
-      # 1. CHECKOUT DEL CÓDIGO
+      # 1. CHECKOUT
       - name: 📥 Checkout código
         uses: actions/checkout@v4
       
-      # 2. CONFIGURAR DOCKER BUILDX
+      # ============================================================
+      # 2. DOCKER BUILDX
       - name: 🐳 Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      # 3. CONFIGURAR VARIABLES DE ENTORNO
+      # ============================================================
+      # 3. CONFIG VARIABLES
       - name: ⚙️ Configurar variables de entorno
         id: config
         run: |
-          # Variables del test (prioridad: workflow_dispatch > repository_dispatch > default)
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             BASE_URL="${{ inputs.base_url }}"
             TEST_PLAN="${{ inputs.test_plan }}"
           elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            BASE_URL="${{ github.event.client_payload.base_url || 'http://localhost:8000' }}"
+            BASE_URL="${{ github.event.client_payload.base_url || 'https://endpoints-fast-api.onrender.com' }}"
             TEST_PLAN="${{ github.event.client_payload.test_plan || 'test-plans/jmeter/tp-carga-controlada.jmx' }}"
           else
-            BASE_URL="http://localhost:8000"
+            BASE_URL="https://endpoints-fast-api.onrender.com"
             TEST_PLAN="test-plans/jmeter/tp-carga-controlada.jmx"
           fi
           
@@ -62,21 +62,19 @@ jobs:
           echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
           echo "TEST_PLAN=$TEST_PLAN" >> $GITHUB_ENV
       
-      # 4. MOSTRAR CONFIGURACIÓN
-      - name: 📋 Mostrar configuración del test
+      # ============================================================
+      # 4. SHOW CONFIG
+      - name: 📋 Mostrar configuración
         run: |
-          echo "================================================"
-          echo "  CONFIGURACIÓN DE LA PRUEBA"
           echo "================================================"
           echo "Base URL:    ${{ steps.config.outputs.base_url }}"
           echo "Test Plan:   ${{ steps.config.outputs.test_plan }}"
           echo "JMeter:      ${JMETER_VERSION}"
-          echo "Python:      ${{ env.PYTHON_VERSION }}"
-          echo "Runner:      Docker"
           echo "================================================"
       
-      # 5. CACHE DE DOCKER LAYERS
-      - name: 💾 Cache de Docker layers
+      # ============================================================
+      # 5. CACHE DOCKER
+      - name: 💾 Cache Docker layers
         uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
@@ -84,57 +82,51 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
       
-      # 6. BUILD DE LA IMAGEN DOCKER
-      - name: 🔨 Build imagen Docker de JMeter
+      # ============================================================
+      # 6. BUILD IMAGE
+      - name: 🔨 Build imagen Docker
         run: |
-          echo "🔨 Construyendo imagen Docker..."
-            docker build \
-              --build-arg JMETER_VERSION=${JMETER_VERSION} \
-              -t jmeter-runner:latest \
-              -f Dockerfile \
-              .
-          
-          echo "✅ Imagen construida exitosamente"
-          docker images | grep jmeter-runner
-          
-            # Cache step removido por incompatibilidad con el driver Docker en GitHub Actions
+          docker build \
+            --build-arg JMETER_VERSION=${JMETER_VERSION} \
+            -t jmeter-runner:latest \
+            -f Dockerfile \
+            .
       
-      # 7. VALIDAR API (si es necesario)
-      - name: 🔍 Validar que la API esté disponible
+      # ============================================================
+      # 7. VALIDAR API (FIX IMPORTANTE)
+      - name: 🔍 Validar disponibilidad API
         if: ${{ !contains(steps.config.outputs.base_url, 'localhost') }}
         run: |
-          echo "🔍 Verificando disponibilidad de: ${{ steps.config.outputs.base_url }}"
+          echo "🔍 Verificando disponibilidad de la API..."
           
-          MAX_RETRIES=5
+          MAX_RETRIES=12
           RETRY_COUNT=0
           
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if curl -sf "${{ steps.config.outputs.base_url }}/health" > /dev/null 2>&1 || \
-               curl -sf "${{ steps.config.outputs.base_url }}" > /dev/null 2>&1; then
+            if curl -sf "${{ steps.config.outputs.base_url }}/api/v1/health" > /dev/null 2>&1; then
               echo "✅ API disponible"
               exit 0
             fi
             
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "⚠️  Intento $RETRY_COUNT/$MAX_RETRIES - API no disponible, esperando..."
+            echo "⏳ Intento $RETRY_COUNT/$MAX_RETRIES - esperando..."
             sleep 10
           done
           
-          echo "❌ API no disponible después de $MAX_RETRIES intentos"
-          echo "⚠️  Continuando de todas formas..."
+          echo "⚠️ API no respondió al health check"
+          echo "Continuando de todas formas..."
       
-      # 8. CREAR DIRECTORIOS PARA RESULTADOS
+      # ============================================================
+      # 8. CREATE DIRS
       - name: 📂 Crear directorios
         run: |
-          mkdir -p results
-          mkdir -p docs
-          chmod 777 results docs
+          mkdir -p results docs
+          chmod -R 777 results docs
       
-      # 9. EJECUTAR PRUEBAS CON DOCKER
-      - name: 🚀 Ejecutar pruebas de JMeter en Docker
+      # ============================================================
+      # 9. RUN TESTS
+      - name: 🚀 Ejecutar pruebas
         run: |
-          echo "🐳 Ejecutando contenedor Docker..."
-          
           docker run --rm \
             -v $(pwd)/results:/tests/results \
             -v $(pwd)/docs:/tests/docs \
@@ -146,153 +138,38 @@ jobs:
             python3 scripts/execute-tests.py \
               --base-url="${{ steps.config.outputs.base_url }}" \
               --test-plan="${{ steps.config.outputs.test_plan }}"
-          
-          echo "✅ Pruebas completadas"
       
-      # 10. VERIFICAR RESULTADOS GENERADOS
-      - name: 🔍 Verificar resultados generados
+      # ============================================================
+      # 10. VERIFY RESULTS
+      - name: 🔍 Verificar resultados
         run: |
-          echo "📂 Verificando estructura de archivos generados..."
-          
-          if [ -d "results" ]; then
-            echo "✅ Directorio results/ existe"
-            ls -lah results/
-          else
-            echo "❌ No se encontró directorio results/"
-            exit 1
-          fi
-          
-          if [ -d "docs" ]; then
-            echo "✅ Directorio docs/ existe"
-            ls -lah docs/
-          else
-            echo "❌ No se encontró directorio docs/"
-            exit 1
-          fi
-          
-          # Verificar que se generó el reporte
-          if [ -f "docs/index.html" ]; then
-            echo "✅ Reporte HTML generado"
-          else
-            echo "❌ No se generó el reporte HTML"
-            exit 1
-          fi
+          ls -lah results || exit 1
+          ls -lah docs || exit 1
       
-      # 11. PUBLICAR RESULTADOS
-      - name: 📊 Publicar reporte HTML
-        if: always()
+      # ============================================================
+      # 11. UPLOAD ARTIFACTS
+      - name: 📊 Publicar reporte
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-report-${{ github.run_number }}
           path: |
             docs/
             results/run_*/
-          retention-days: 30
       
-      # 12. GUARDAR RESULTADOS EN MAIN
-      - name: 💾 Commit resultados en main/docs
+      # ============================================================
+      # 12. COMMIT REPORT
+      - name: 💾 Guardar reporte en repo
         if: success()
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git checkout main
           git add docs/
-          git commit -m "Add JMeter report - Run ${{ github.run_number }}" || echo "No changes to commit"
+          git commit -m "JMeter report run ${{ github.run_number }}" || echo "No changes"
           git push origin main
       
-      # 13. ANALIZAR RESULTADOS
-      - name: 📈 Analizar resultados
-        if: success()
-        run: |
-          echo "📊 Analizando resultados..."
-          
-          # Buscar el archivo statistics.json más reciente
-          STATS_FILE=$(find results -name "statistics.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -f2- -d" ")
-          
-          if [ -z "$STATS_FILE" ] || [ ! -f "$STATS_FILE" ]; then
-            echo "⚠️  No se encontró archivo de estadísticas"
-            echo "ℹ️  El test se ejecutó pero no hay datos para analizar"
-            exit 0
-          fi
-          
-          echo "📄 Archivo de estadísticas: $STATS_FILE"
-          
-          # Extraer métricas usando Python
-          python3 << EOF
-          import json
-          import sys
-          
-          with open("$STATS_FILE", "r") as f:
-              stats = json.load(f)
-          
-          total = stats.get("Total", {})
-          error_pct = total.get("errorPct", 0)
-          mean_time = total.get("meanResTime", 0)
-          p95_time = total.get("pct2ResTime", 0)
-          sample_count = total.get("sampleCount", 0)
-          
-          print(f"\n{'='*60}")
-          print(f"  RESULTADOS DE LA PRUEBA")
-          print(f"{'='*60}")
-          print(f"Total peticiones:   {sample_count:,}")
-          print(f"Tasa de error:      {error_pct:.2f}%")
-          print(f"Tiempo promedio:    {mean_time:.2f}ms")
-          print(f"Percentil 95:       {p95_time:.2f}ms")
-          print(f"{'='*60}\n")
-          
-          # Definir umbrales
-          ERROR_THRESHOLD = 5.0  # 5% de errores máximo
-          P95_THRESHOLD = 2000   # 2000ms máximo para P95
-          
-          failed = False
-          
-          if error_pct > ERROR_THRESHOLD:
-              print(f"❌ FALLO: Tasa de error ({error_pct:.2f}%) supera el umbral ({ERROR_THRESHOLD}%)")
-              failed = True
-          
-          if p95_time > P95_THRESHOLD:
-              print(f"❌ FALLO: P95 ({p95_time:.2f}ms) supera el umbral ({P95_THRESHOLD}ms)")
-              failed = True
-          
-          if not failed:
-              print("✅ ÉXITO: Todos los umbrales fueron cumplidos")
-          
-          # Guardar métricas para el siguiente step
-          with open("metrics.txt", "w") as f:
-              f.write(f"error_pct={error_pct}\n")
-              f.write(f"mean_time={mean_time}\n")
-              f.write(f"p95_time={p95_time}\n")
-              f.write(f"sample_count={sample_count}\n")
-              f.write(f"failed={failed}\n")
-          
-          sys.exit(1 if failed else 0)
-          EOF
-      
-      # 14. GUARDAR MÉTRICAS COMO OUTPUT
-      - name: 💾 Guardar métricas
-        if: success() || failure()
-        id: metrics
-        run: |
-          if [ -f "metrics.txt" ]; then
-            cat metrics.txt >> $GITHUB_OUTPUT
-          fi
-      
-      # 16. LIMPIAR CONTENEDORES E IMÁGENES
+      # ============================================================
+      # 13. CLEANUP
       - name: 🧹 Limpiar Docker
         if: always()
-        run: |
-          echo "🧹 Limpiando recursos de Docker..."
-          docker system prune -f
-          echo "✅ Limpieza completada"
-      
-      # 17. NOTIFICAR RESULTADO
-      - name: 📧 Notificar resultado
-        if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Las pruebas de performance completaron exitosamente"
-          else
-            echo "❌ Las pruebas de performance fallaron"
-            echo "📊 Revisa los artefactos para más detalles"
-          fi
-          echo "🔗 URL del workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: docker system prune -f

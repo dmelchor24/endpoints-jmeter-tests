@@ -12,7 +12,7 @@
       <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults">
         <intProp name="HTTPSampler.connect_timeout">10000</intProp>
         <intProp name="HTTPSampler.response_timeout">10000</intProp>
-        <stringProp name="HTTPSampler.domain">endpoints-fast-api.onrender.com</stringProp>
+        <stringProp name="HTTPSampler.domain">${__P(base_url)}</stringProp>
         <stringProp name="HTTPSampler.protocol">https</stringProp>
         <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
           <collectionProp name="Arguments.arguments"/>
@@ -21,7 +21,7 @@
       </ConfigTestElement>
       <hashTree/>
       <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config">
-        <stringProp name="filename">../../data/csv/set-datos-creacion.csv</stringProp>
+        <stringProp name="filename">tests/data/csv/set-datos-creacion.csv</stringProp>
         <stringProp name="fileEncoding"></stringProp>
         <stringProp name="variableNames">title,description</stringProp>
         <boolProp name="ignoreFirstLine">true</boolProp>
@@ -72,7 +72,7 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion">
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Response Assertion" enabled="true">
             <collectionProp name="Asserion.test_strings">
               <stringProp name="49586">200</stringProp>
               <stringProp name="49587">201</stringProp>
@@ -83,7 +83,7 @@
             <intProp name="Assertion.test_type">48</intProp>
           </ResponseAssertion>
           <hashTree/>
-          <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion" testname="Duration Assertion">
+          <DurationAssertion guiclass="DurationAssertionGui" testclass="DurationAssertion" testname="Duration Assertion" enabled="true">
             <stringProp name="DurationAssertion.duration">3000</stringProp>
           </DurationAssertion>
           <hashTree/>
