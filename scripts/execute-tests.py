@@ -140,7 +140,7 @@ except subprocess.CalledProcessError as e:
 
 print_info("\n📦", "Preparando archivos para GitHub Pages...")
 
-docs_report_dir = os.path.join(docs_dir, "report")
+docs_report_dir = os.path.join(docs_dir)
 
 # Función para eliminar directorios en Windows con retry
 def remove_readonly(func, path, excinfo):
@@ -179,33 +179,23 @@ def safe_rmtree(directory, max_attempts=3):
     
     return False
 
-# 1. Limpiar reporte anterior en docs/
-if os.path.isdir(docs_report_dir):
-    print_info("🗑️ ", "Eliminando reporte anterior...")
-    if safe_rmtree(docs_report_dir):
-        print_success("✅", "Reporte anterior eliminado")
+# Limpiar contenido previo de docs (sin borrar la carpeta)
+for item in os.listdir(docs_dir):
+    item_path = os.path.join(docs_dir, item)
+    if os.path.isdir(item_path):
+        shutil.rmtree(item_path)
     else:
-        # Si no se puede eliminar, intentar renombrar
-        try:
-            backup_name = f"report_backup_{int(time.time())}"
-            backup_path = os.path.join(docs_dir, backup_name)
-            os.rename(docs_report_dir, backup_path)
-            print_warning("⚠️ ", f"Directorio renombrado a: {backup_name}")
-            print_info("💡", "Elimínalo manualmente cuando puedas")
-        except:
-            print_warning("⚠️ ", "No se pudo limpiar el directorio anterior")
-            print_info("💡", "Cierra VS Code, navegadores y el explorador de archivos")
-            print_info("💡", "Luego ejecuta el script nuevamente")
-            sys.exit(1)
+        os.remove(item_path)
 
-# 2. Copiar reporte completo a docs/report/
-if os.path.exists(report_dir_path):
-    try:
-        shutil.copytree(report_dir_path, docs_report_dir, dirs_exist_ok=True)
-        print_success("✅", "Reporte copiado a docs/report/")
-    except Exception as e:
-        print_error("❌", f"Error al copiar reporte: {e}")
-        sys.exit(1)
+# Copiar reporte directamente dentro de docs/
+for item in os.listdir(report_dir_path):
+    src = os.path.join(report_dir_path, item)
+    dst = os.path.join(docs_dir, item)
+
+    if os.path.isdir(src):
+        shutil.copytree(src, dst)
+    else:
+        shutil.copy2(src, dst)
     
     # 3. Crear index.html principal que redirige al reporte
     index_html = f"""<!DOCTYPE html>
@@ -275,11 +265,8 @@ if os.path.exists(report_dir_path):
 </body>
 </html>
 """
-    
-    with open(os.path.join(docs_dir, "index.html"), "w", encoding="utf-8") as f:
-        f.write(index_html)
-    
-    print_success("✅", "Index principal creado con redirección")
+
+print_success("✅", "Reporte copiado directamente a docs/")
 
 # 4. Guardar timestamp de última ejecución
 with open(os.path.join(docs_dir, ".last_run.txt"), "w") as f:
