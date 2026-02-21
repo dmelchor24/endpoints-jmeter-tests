@@ -63,20 +63,17 @@ jobs:
           echo "TEST_PLAN=$TEST_PLAN" >> $GITHUB_ENV
       
       # ============================================================
-      # 4. VALIDAR URL (FIX: detecta URLs malformadas antes de continuar)
+      # 4. VALIDAR URL
       - name: 🔎 Validar formato de URL
         run: |
           URL="${{ steps.config.outputs.base_url }}"
           echo "URL recibida: $URL"
           
-          # Detectar caracteres de markdown u otros artefactos comunes
           if [[ "$URL" == *"__"* ]] || [[ "$URL" == *"**"* ]] || [[ "$URL" == *" "* ]]; then
             echo "❌ ERROR: La URL contiene caracteres inválidos: '$URL'"
-            echo "Asegúrate de ingresar solo la URL sin formato markdown ni espacios."
             exit 1
           fi
           
-          # Validar que empiece con http:// o https://
           if [[ "$URL" != http://* ]] && [[ "$URL" != https://* ]]; then
             echo "❌ ERROR: La URL no tiene un esquema válido (http/https): '$URL'"
             exit 1
@@ -137,18 +134,27 @@ jobs:
             sleep 10
           done
           
-          echo "⚠️ API no respondió al health check"
-          echo "Continuando de todas formas..."
+          echo "⚠️ API no respondió al health check, continuando..."
       
       # ============================================================
-      # 9. CREATE DIRS
+      # 9. LIMPIAR DOCS (FIX: elimina TODO antes de correr Docker)
+      - name: 🧹 Limpiar docs previo
+        run: |
+          echo "🧹 Limpiando directorio docs/..."
+          rm -rf docs/
+          mkdir -p docs/
+          chmod 777 docs/
+          echo "✅ docs/ limpio"
+
+      # ============================================================
+      # 10. CREATE DIRS
       - name: 📂 Crear directorios
         run: |
-          mkdir -p results docs
-          chmod -R 777 results docs
+          mkdir -p results
+          chmod -R 777 results
       
       # ============================================================
-      # 10. RUN TESTS
+      # 11. RUN TESTS
       - name: 🚀 Ejecutar pruebas
         run: |
           echo "🐳 Ejecutando contenedor Docker..."
@@ -166,7 +172,7 @@ jobs:
           echo "✅ Contenedor finalizado"
 
       # ============================================================
-      # 11. VERIFY RESULTS
+      # 12. VERIFY RESULTS
       - name: 🔍 Verificar resultados
         run: |
           echo "📂 Verificando estructura de archivos generados..."
@@ -174,28 +180,25 @@ jobs:
           ls -lah docs || exit 1
       
       # ============================================================
-      # 12. UPLOAD ARTIFACTS
-      - name: 📦 Empaquetar resultados
-        run: |
-          zip -r jmeter-report-${{ github.run_number }}.zip docs/
-          zip -r jmeter-results-${{ github.run_number }}.zip results/run_*/
-
+      # 13. UPLOAD ARTIFACTS
+      # upload-artifact@v4 ya genera el .zip automáticamente.
+      # NO empaquetar manualmente: subirlo directo evita el ZIP dentro de ZIP.
       - name: 📊 Publicar reporte HTML
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-report-${{ github.run_number }}
-          path: jmeter-report-${{ github.run_number }}.zip
+          path: docs/
           retention-days: 30
 
       - name: 📁 Publicar resultados CSV y logs
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-results-${{ github.run_number }}
-          path: jmeter-results-${{ github.run_number }}.zip
+          path: results/run_*/
           retention-days: 30
       
       # ============================================================
-      # 13. COMMIT REPORT
+      # 14. COMMIT REPORT
       - name: 💾 Commit report to repository
         if: success()
         run: |
@@ -212,7 +215,7 @@ jobs:
           fi
       
       # ============================================================
-      # 14. CLEANUP
+      # 15. CLEANUP
       - name: 🧹 Limpiar Docker
         if: always()
         run: docker system prune -f
