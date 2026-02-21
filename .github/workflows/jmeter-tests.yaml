@@ -175,18 +175,23 @@ jobs:
       
       # ============================================================
       # 12. UPLOAD ARTIFACTS
+      - name: 📦 Empaquetar resultados
+        run: |
+          zip -r jmeter-report-${{ github.run_number }}.zip docs/
+          zip -r jmeter-results-${{ github.run_number }}.zip results/run_*/
+
       - name: 📊 Publicar reporte HTML
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-report-${{ github.run_number }}
-          path: docs/
+          path: jmeter-report-${{ github.run_number }}.zip
           retention-days: 30
 
       - name: 📁 Publicar resultados CSV y logs
         uses: actions/upload-artifact@v4
         with:
           name: jmeter-results-${{ github.run_number }}
-          path: results/run_*/
+          path: jmeter-results-${{ github.run_number }}.zip
           retention-days: 30
       
       # ============================================================
