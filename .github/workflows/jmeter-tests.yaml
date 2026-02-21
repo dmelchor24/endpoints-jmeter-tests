@@ -86,12 +86,13 @@ jobs:
       # 6. BUILD IMAGE
       - name: 🔨 Build imagen Docker
         run: |
+          echo "🔨 Construyendo imagen Docker..."
           docker build \
             --build-arg JMETER_VERSION=${JMETER_VERSION} \
             -t jmeter-runner:latest \
             -f Dockerfile \
             .
-      
+          echo "✅ Imagen construida exitosamente"
       # ============================================================
       # 7. VALIDAR API (FIX IMPORTANTE)
       - name: 🔍 Validar disponibilidad API
@@ -127,6 +128,7 @@ jobs:
       # 9. RUN TESTS
       - name: 🚀 Ejecutar pruebas
         run: |
+          echo "🐳 Ejecutando contenedor Docker..."
           docker run --rm \
             -v $(pwd)/results:/tests/results \
             -v $(pwd)/docs:/tests/docs \
@@ -138,11 +140,14 @@ jobs:
             python3 scripts/execute-tests.py \
               --base-url="${{ steps.config.outputs.base_url }}" \
               --test-plan="${{ steps.config.outputs.test_plan }}"
-      
+          
+          echo "🐳 Ejecutando contenedor Docker..."
       # ============================================================
       # 10. VERIFY RESULTS
       - name: 🔍 Verificar resultados
         run: |
+          echo "📂 Verificando estructura de archivos generados..."
+          
           ls -lah results || exit 1
           ls -lah docs || exit 1
       
