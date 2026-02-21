@@ -1,2 +1,2 @@
-20260221_000752
-base_url=http://localhost:8000
+20260221_103518
+base_url=https://endpoints-fast-api.onrender.com/
