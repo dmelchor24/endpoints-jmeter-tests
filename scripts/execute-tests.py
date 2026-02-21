@@ -180,7 +180,7 @@ def safe_rmtree(directory, max_attempts=3):
     return False
 
 # 1. Limpiar reporte anterior en docs/
-if os.path.exists(docs_report_dir):
+if os.path.isdir(docs_report_dir):
     print_info("🗑️ ", "Eliminando reporte anterior...")
     if safe_rmtree(docs_report_dir):
         print_success("✅", "Reporte anterior eliminado")
@@ -201,7 +201,7 @@ if os.path.exists(docs_report_dir):
 # 2. Copiar reporte completo a docs/report/
 if os.path.exists(report_dir_path):
     try:
-        shutil.copytree(report_dir_path, docs_report_dir)
+        shutil.copytree(report_dir_path, docs_report_dir, dirs_exist_ok=True)
         print_success("✅", "Reporte copiado a docs/report/")
     except Exception as e:
         print_error("❌", f"Error al copiar reporte: {e}")

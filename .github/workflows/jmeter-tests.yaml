@@ -147,7 +147,7 @@ jobs:
       - name: 🔍 Verificar resultados
         run: |
           echo "📂 Verificando estructura de archivos generados..."
-          
+
           ls -lah results || exit 1
           ls -lah docs || exit 1
       
@@ -163,15 +163,20 @@ jobs:
       
       # ============================================================
       # 12. COMMIT REPORT
-      - name: 💾 Guardar reporte en repo
+      - name: 💾 Commit report to repository
         if: success()
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git checkout main
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
           git add docs/
-          git commit -m "JMeter report run ${{ github.run_number }}" || echo "No changes"
-          git push origin main
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update JMeter report - run ${{ github.run_number }}"
+            git push
+          fi
       
       # ============================================================
       # 13. CLEANUP
