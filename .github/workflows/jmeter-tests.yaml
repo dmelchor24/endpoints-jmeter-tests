@@ -183,18 +183,13 @@ jobs:
       # 13. UPLOAD ARTIFACTS
       # upload-artifact@v4 ya genera el .zip automáticamente.
       # NO empaquetar manualmente: subirlo directo evita el ZIP dentro de ZIP.
-      - name: 📊 Publicar reporte HTML
+      - name: 📦 Publicar reporte y resultados
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-report-${{ github.run_number }}
-          path: docs/
-          retention-days: 30
-
-      - name: 📁 Publicar resultados CSV y logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: jmeter-results-${{ github.run_number }}
-          path: results/run_*/
+          name: jmeter-run-${{ github.run_number }}
+          path: |
+            docs/
+            results/run_*/
           retention-days: 30
       
       # ============================================================
