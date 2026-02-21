@@ -1,4 +1,4 @@
-timestamp=20260221_142433
+timestamp=20260221_154333
 base_url=https://endpoints-fast-api.onrender.com
 jmeter_host=endpoints-fast-api.onrender.com
-data_rows=3497
+data_rows=3289
