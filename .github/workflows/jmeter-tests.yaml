@@ -63,7 +63,29 @@ jobs:
           echo "TEST_PLAN=$TEST_PLAN" >> $GITHUB_ENV
       
       # ============================================================
-      # 4. SHOW CONFIG
+      # 4. VALIDAR URL (FIX: detecta URLs malformadas antes de continuar)
+      - name: 🔎 Validar formato de URL
+        run: |
+          URL="${{ steps.config.outputs.base_url }}"
+          echo "URL recibida: $URL"
+          
+          # Detectar caracteres de markdown u otros artefactos comunes
+          if [[ "$URL" == *"__"* ]] || [[ "$URL" == *"**"* ]] || [[ "$URL" == *" "* ]]; then
+            echo "❌ ERROR: La URL contiene caracteres inválidos: '$URL'"
+            echo "Asegúrate de ingresar solo la URL sin formato markdown ni espacios."
+            exit 1
+          fi
+          
+          # Validar que empiece con http:// o https://
+          if [[ "$URL" != http://* ]] && [[ "$URL" != https://* ]]; then
+            echo "❌ ERROR: La URL no tiene un esquema válido (http/https): '$URL'"
+            exit 1
+          fi
+          
+          echo "✅ URL válida: $URL"
+
+      # ============================================================
+      # 5. SHOW CONFIG
       - name: 📋 Mostrar configuración
         run: |
           echo "================================================"
@@ -73,7 +95,7 @@ jobs:
           echo "================================================"
       
       # ============================================================
-      # 5. CACHE DOCKER
+      # 6. CACHE DOCKER
       - name: 💾 Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -83,7 +105,7 @@ jobs:
             ${{ runner.os }}-buildx-
       
       # ============================================================
-      # 6. BUILD IMAGE
+      # 7. BUILD IMAGE
       - name: 🔨 Build imagen Docker
         run: |
           echo "🔨 Construyendo imagen Docker..."
@@ -93,8 +115,9 @@ jobs:
             -f Dockerfile \
             .
           echo "✅ Imagen construida exitosamente"
+
       # ============================================================
-      # 7. VALIDAR API (FIX IMPORTANTE)
+      # 8. VALIDAR API
       - name: 🔍 Validar disponibilidad API
         if: ${{ !contains(steps.config.outputs.base_url, 'localhost') }}
         run: |
@@ -118,14 +141,14 @@ jobs:
           echo "Continuando de todas formas..."
       
       # ============================================================
-      # 8. CREATE DIRS
+      # 9. CREATE DIRS
       - name: 📂 Crear directorios
         run: |
           mkdir -p results docs
           chmod -R 777 results docs
       
       # ============================================================
-      # 9. RUN TESTS
+      # 10. RUN TESTS
       - name: 🚀 Ejecutar pruebas
         run: |
           echo "🐳 Ejecutando contenedor Docker..."
@@ -140,19 +163,18 @@ jobs:
             python3 scripts/execute-tests.py \
               --base-url="${{ steps.config.outputs.base_url }}" \
               --test-plan="${{ steps.config.outputs.test_plan }}"
-          
-          echo "🐳 Ejecutando contenedor Docker..."
+          echo "✅ Contenedor finalizado"
+
       # ============================================================
-      # 10. VERIFY RESULTS
+      # 11. VERIFY RESULTS
       - name: 🔍 Verificar resultados
         run: |
           echo "📂 Verificando estructura de archivos generados..."
-
           ls -lah results || exit 1
           ls -lah docs || exit 1
       
       # ============================================================
-      # 11. UPLOAD ARTIFACTS
+      # 12. UPLOAD ARTIFACTS
       - name: 📊 Publicar reporte
         uses: actions/upload-artifact@v4
         with:
@@ -162,7 +184,7 @@ jobs:
             results/run_*/
       
       # ============================================================
-      # 12. COMMIT REPORT
+      # 13. COMMIT REPORT
       - name: 💾 Commit report to repository
         if: success()
         run: |
@@ -179,7 +201,7 @@ jobs:
           fi
       
       # ============================================================
-      # 13. CLEANUP
+      # 14. CLEANUP
       - name: 🧹 Limpiar Docker
         if: always()
         run: docker system prune -f
