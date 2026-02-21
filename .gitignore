@@ -4,7 +4,6 @@
 
 # Results y docs (se montarán como volúmenes)
 results/
-docs/
 
 # Python
 __pycache__/
