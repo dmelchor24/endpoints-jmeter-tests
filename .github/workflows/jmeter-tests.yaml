@@ -10,7 +10,7 @@ on:
         description: 'URL base de la API a probar'
 
         required: true
-        default: 'http://localhost:8000'
+        default: 'https://endpoints-fast-api.onrender.com/'
         type: string
       test_plan:
         description: 'Ruta de Test plan a ejecutar'
