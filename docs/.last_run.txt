@@ -1,2 +1,2 @@
-20260221_103518
-base_url=https://endpoints-fast-api.onrender.com/
+20260221_113351
+base_url=https://endpoints-fast-api.onrender.com
