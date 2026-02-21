@@ -12,7 +12,7 @@
       <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults">
         <intProp name="HTTPSampler.connect_timeout">10000</intProp>
         <intProp name="HTTPSampler.response_timeout">10000</intProp>
-        <stringProp name="HTTPSampler.domain">${__P(base_url)}</stringProp>
+        <stringProp name="HTTPSampler.domain">${__P(base_url,endpoints-fast-api.onrender.com)}</stringProp>
         <stringProp name="HTTPSampler.protocol">https</stringProp>
         <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
           <collectionProp name="Arguments.arguments"/>
@@ -21,7 +21,7 @@
       </ConfigTestElement>
       <hashTree/>
       <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config">
-        <stringProp name="filename">tests/data/csv/set-datos-creacion.csv</stringProp>
+        <stringProp name="filename">/tests/data/csv/set-datos-creacion.csv</stringProp>
         <stringProp name="fileEncoding"></stringProp>
         <stringProp name="variableNames">title,description</stringProp>
         <boolProp name="ignoreFirstLine">true</boolProp>
@@ -51,8 +51,8 @@
         </UniformRandomTimer>
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request">
-          <stringProp name="HTTPSampler.domain">endpoints-fast-api.onrender.com</stringProp>
-          <stringProp name="HTTPSampler.protocol">https</stringProp>
+          <stringProp name="HTTPSampler.domain"></stringProp>
+          <stringProp name="HTTPSampler.protocol"></stringProp>
           <stringProp name="HTTPSampler.path">/api/v1/tasks</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
