@@ -1,4 +1,4 @@
-# endpoints-jmeter-tests
+# 🤖 Automatización de Pruebas con JMeter
 
 Repositorio para pruebas de performance y carga de endpoints HTTP usando Apache JMeter, con automatización completa de ejecución, generación de reportes interactivos y soporte para integración continua (CI/CD).
 
